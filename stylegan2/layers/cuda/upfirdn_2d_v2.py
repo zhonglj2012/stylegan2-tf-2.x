@@ -277,28 +277,6 @@ def downsample_2d(x, k=None, factor=2, gain=1, data_format='NCHW', impl='cuda'):
 
 
 def upsample_conv_2d(x, w, k=None, factor=2, gain=1, data_format='NCHW', impl='cuda'):
-    r"""Fused `upsample_2d()` followed by `tf.nn.conv2d()`.
-
-    Padding is performed only once at the beginning, not between the operations.
-    The fused op is considerably more efficient than performing the same calculation
-    using standard TensorFlow ops. It supports gradients of arbitrary order.
-
-    Args:
-        x:            Input tensor of the shape `[N, C, H, W]` or `[N, H, W, C]`.
-        w:            Weight tensor of the shape `[filterH, filterW, inChannels, outChannels]`.
-                      Grouped convolution can be performed by `inChannels = x.shape[0] // numGroups`.
-        k:            FIR filter of the shape `[firH, firW]` or `[firN]` (separable).
-                      The default is `[1] * factor`, which corresponds to nearest-neighbor
-                      upsampling.
-        factor:       Integer upsampling factor (default: 2).
-        gain:         Scaling factor for signal magnitude (default: 1.0).
-        data_format:  `'NCHW'` or `'NHWC'` (default: `'NCHW'`).
-        impl:         Name of the implementation to use. Can be `"ref"` or `"cuda"` (default).
-
-    Returns:
-        Tensor of the shape `[N, C, H * factor, W * factor]` or
-        `[N, H * factor, W * factor, C]`, and same datatype as `x`.
-    """
 
     assert isinstance(factor, int) and factor >= 1
 
@@ -377,7 +355,7 @@ def _setup_kernel(k):
 def _simple_upfirdn_2d(x, k, up=1, down=1, pad0=0, pad1=0, data_format='NCHW', impl='cuda'):
     assert data_format in ['NCHW', 'NHWC']
     assert x.shape.rank == 4
-    y = x
+    y = tf.convert_to_tensor(x)
     if data_format == 'NCHW':
         y = tf.reshape(y, [-1, _shape(y, 2), _shape(y, 3), 1])
     y = upfirdn_2d(y, k, upx=up, upy=up, downx=down, downy=down,
