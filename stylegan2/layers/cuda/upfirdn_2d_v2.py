@@ -7,6 +7,14 @@ from stylegan2.layers.cuda import custom_ops
 def _get_plugin():
     return custom_ops.get_plugin(os.path.splitext(__file__)[0] + '.cu')
 
+def upfirdn_2d(x, k, upx=1, upy=1, downx=1, downy=1, padx0=0, padx1=0, pady0=0, pady1=0, impl='cuda'):
+
+    impl_dict = {
+        'ref':  _upfirdn_2d_ref,
+        'cuda': _upfirdn_2d_ref if 'TPU_NAME' in os.environ
+    }
+    return impl_dict[impl](x=x, k=k, upx=upx, upy=upy, downx=downx, downy=downy, padx0=padx0, padx1=padx1, pady0=pady0, pady1=pady1)
+
 
 def _setup_kernel(k):
     k = np.asarray(k, dtype=np.float32)
@@ -72,7 +80,8 @@ def upsample_conv_2d(x, x_res, w, convH, convW, pad0, pad1, k, factor=2):
 
     # Determine data dimensions.
     stride = [1, 1, factor, factor]
-    output_shape = [tf.shape(x)[0], outC, (x_res - 1) * factor + convH, (x_res - 1) * factor + convW]
+    output_shape = [tf.shape(x)[0], outC, (x_res - 1)
+                    * factor + convH, (x_res - 1) * factor + convW]
     num_groups = tf.shape(x)[1] // inC
 
     # Transpose weights.
@@ -81,7 +90,8 @@ def upsample_conv_2d(x, x_res, w, convH, convW, pad0, pad1, k, factor=2):
     w = tf.reshape(w, [convH, convW, -1, num_groups * inC])
 
     # Execute.
-    x = tf.nn.conv2d_transpose(x, w, output_shape=output_shape, strides=stride, padding='VALID', data_format='NCHW')
+    x = tf.nn.conv2d_transpose(x, w, output_shape=output_shape,
+                               strides=stride, padding='VALID', data_format='NCHW')
     new_x_res = output_shape[2]
     return _simple_upfirdn_2d(x, new_x_res, k, pad0=pad0, pad1=pad1)
 
@@ -101,12 +111,13 @@ def _simple_upfirdn_2d(x, x_res, k, up=1, down=1, pad0=0, pad1=0):
     assert x.shape.rank == 4
     y = x
     y = tf.reshape(y, [-1, x_res, x_res, 1])
-    y = upfirdn_2d_cuda(y, k, upx=up, upy=up, downx=down, downy=down, padx0=pad0, padx1=pad1, pady0=pad0, pady1=pad1)
+    y = upfirdn_2d(y, k, upx=up, upy=up, downx=down,
+                        downy=down, padx0=pad0, padx1=pad1, pady0=pad0, pady1=pad1)
     y = tf.reshape(y, [-1, tf.shape(x)[1], tf.shape(y)[1], tf.shape(y)[2]])
     return y
 
 
-def upfirdn_2d_cuda(x, k, upx, upy, downx, downy, padx0, padx1, pady0, pady1):
+def _upfirdn_2d_ref(x, k, upx, upy, downx, downy, padx0, padx1, pady0, pady1):
     """Fast CUDA implementation of `upfirdn_2d()` using custom ops."""
 
     x = tf.convert_to_tensor(x)
@@ -133,11 +144,14 @@ def upfirdn_2d_cuda(x, k, upx, upy, downx, downy, padx0, padx1, pady0, pady1):
 
     @tf.custom_gradient
     def func(x):
-        y = _get_plugin().up_fir_dn2d(x=x, k=kc, upx=upx, upy=upy, downx=downx, downy=downy, padx0=padx0, padx1=padx1, pady0=pady0, pady1=pady1)
+        y = _get_plugin().up_fir_dn2d(x=x, k=kc, upx=upx, upy=upy, downx=downx,
+                                      downy=downy, padx0=padx0, padx1=padx1, pady0=pady0, pady1=pady1)
         y.set_shape([majorDim, outH, outW, minorDim])
+
         @tf.custom_gradient
         def grad(dy):
-            dx = _get_plugin().up_fir_dn2d(x=dy, k=gkc, upx=downx, upy=downy, downx=upx, downy=upy, padx0=gpadx0, padx1=gpadx1, pady0=gpady0, pady1=gpady1)
+            dx = _get_plugin().up_fir_dn2d(x=dy, k=gkc, upx=downx, upy=downy, downx=upx,
+                                           downy=upy, padx0=gpadx0, padx1=gpadx1, pady0=gpady0, pady1=gpady1)
             dx.set_shape([majorDim, inH, inW, minorDim])
             return dx, func
         return y, grad
