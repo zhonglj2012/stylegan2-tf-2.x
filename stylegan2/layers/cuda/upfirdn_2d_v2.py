@@ -17,6 +17,35 @@ def _get_plugin():
 
 # ----------------------------------------------------------------------------
 
+def compute_paddings(resample_kernel, convW, up, down, is_conv, factor=2, gain=1):
+    assert not (up and down)
+
+    k = [1] * factor if resample_kernel is None else resample_kernel
+    if up:
+        k = _setup_kernel(k) * (gain * (factor ** 2))
+        if is_conv:
+            p = (k.shape[0] - factor) - (convW - 1)
+            pad0 = (p + 1) // 2 + factor - 1
+            pad1 = p // 2 + 1
+        else:
+            p = k.shape[0] - factor
+            pad0 = (p + 1) // 2 + factor - 1
+            pad1 = p // 2
+    elif down:
+        k = _setup_kernel(k) * gain
+        if is_conv:
+            p = (k.shape[0] - factor) + (convW - 1)
+            pad0 = (p + 1) // 2
+            pad1 = p // 2
+        else:
+            p = k.shape[0] - factor
+            pad0 = (p + 1) // 2
+            pad1 = p // 2
+    else:
+        k = resample_kernel
+        pad0, pad1 = 0, 0
+    return k, pad0, pad1
+
 
 def upfirdn_2d(x, k, upx=1, upy=1, downx=1, downy=1, padx0=0, padx1=0, pady0=0, pady1=0, impl='cuda'):
     r"""Pad, upsample, FIR filter, and downsample a batch of 2D images.
