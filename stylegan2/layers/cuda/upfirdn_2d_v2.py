@@ -5,9 +5,7 @@ from stylegan2.layers.cuda import custom_ops
 
 
 def _get_plugin():
-    loc = os.path.dirname(os.path.abspath(__file__))
-    cu_fn = 'upfirdn_2d.cu'
-    return custom_ops.get_plugin(os.path.join(loc, cu_fn))
+    return custom_ops.get_plugin(os.path.splitext(__file__)[0] + '.cu')
 
 
 def _setup_kernel(k):
