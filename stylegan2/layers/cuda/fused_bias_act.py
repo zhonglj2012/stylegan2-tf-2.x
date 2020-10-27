@@ -9,8 +9,8 @@
 import os
 import numpy as np
 import tensorflow as tf
-from stylegan2.layers.cuda import custom_ops
-from stylegan2.utils import EasyDict
+from .. import custom_ops
+from ...util import EasyDict
 
 def _get_plugin():
     return custom_ops.get_plugin(os.path.splitext(__file__)[0] + '.cu')
@@ -63,7 +63,7 @@ def fused_bias_act(x, b=None, axis=1, act='linear', alpha=None, gain=None, impl=
 
     impl_dict = {
         'ref':  _fused_bias_act_ref,
-        'cuda': _fused_bias_act_cuda,
+        'cuda': _fused_bias_act_ref if 'TPU_NAME' in os.environ else _fused_bias_act_cuda,
     }
     return impl_dict[impl](x=x, b=b, axis=axis, act=act, alpha=alpha, gain=gain)
 
