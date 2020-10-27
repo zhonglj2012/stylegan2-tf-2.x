@@ -395,7 +395,10 @@ def main():
     }
 
     # prepare distribute strategy
-    strategy = tf.distribute.MirroredStrategy()
+    resolver = tf.distribute.cluster_resolver.TPUClusterResolver(tpu='node-2')
+    tf.config.experimental_connect_to_host(resolver.master())
+    tf.tpu.experimental.initialize_tpu_system(resolver)
+    strategy = tf.distribute.experimental.TPUStrategy(resolver)
     global_batch_size = args['batch_size_per_replica'] * strategy.num_replicas_in_sync
 
     # prepare dataset
