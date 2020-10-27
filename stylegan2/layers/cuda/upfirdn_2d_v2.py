@@ -65,6 +65,13 @@ def downsample_2d(x, x_res, pad0, pad1, k, factor=2):
     assert isinstance(factor, int) and factor >= 1
     return _simple_upfirdn_2d(x, x_res, k, down=factor, pad0=pad0, pad1=pad1)
 
+def _shape(tf_expr, dim_idx):
+    if tf_expr.shape.rank is not None:
+        dim = tf_expr.shape[dim_idx].value
+        if dim is not None:
+            return dim
+    return tf.shape(tf_expr)[dim_idx]
+
 
 def upsample_conv_2d(x, x_res, w, convH, convW, pad0, pad1, k, factor=2):
     assert isinstance(factor, int) and factor >= 1
