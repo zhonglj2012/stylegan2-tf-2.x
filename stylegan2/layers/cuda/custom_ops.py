@@ -61,7 +61,7 @@ def _run_cmd(cmd):
         raise RuntimeError('NVCC returned an error. See below for full command line and output log:\n\n%s\n\n%s' % (cmd, output))
 
 def _prepare_nvcc_cli(opts):
-    cmd = 'nvcc --std=c++11 -DNDEBUG ' + opts.strip()
+    cmd = 'nvcc ' + opts.strip()
     cmd += ' --disable-warnings'
     cmd += ' --include-path "%s"' % tf.sysconfig.get_include()
     cmd += ' --include-path "%s"' % os.path.join(tf.sysconfig.get_include(), 'external', 'protobuf_archive', 'src')
@@ -133,7 +133,7 @@ def get_plugin(cuda_file):
 
         # Hash build configuration.
         md5.update(('nvcc_cmd: ' + nvcc_cmd).encode('utf-8') + b'\n')
-        md5.update(('tf.VERSION: ' + tf.version.VERSION).encode('utf-8') + b'\n')
+        md5.update(('tf.VERSION: ' + tf.VERSION).encode('utf-8') + b'\n')
         md5.update(('cuda_cache_version_tag: ' + cuda_cache_version_tag).encode('utf-8') + b'\n')
 
         # Compile if not already compiled.
