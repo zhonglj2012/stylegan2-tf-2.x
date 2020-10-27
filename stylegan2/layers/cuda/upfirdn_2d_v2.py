@@ -118,11 +118,14 @@ def _simple_upfirdn_2d(x, x_res, k, up=1, down=1, pad0=0, pad1=0):
 
 
 def _upfirdn_2d_ref(x, k, upx, upy, downx, downy, padx0, padx1, pady0, pady1):
-    """Fast CUDA implementation of `upfirdn_2d()` using custom ops."""
+    """Slow reference implementation of `upfirdn_2d()` using standard TensorFlow ops."""
 
     x = tf.convert_to_tensor(x)
     k = np.asarray(k, dtype=np.float32)
-    majorDim, inH, inW, minorDim = x.shape.as_list()
+    assert x.shape.rank == 4
+    inH = x.shape[1].value
+    inW = x.shape[2].value
+    minorDim = _shape(x, 3)
     kernelH, kernelW = k.shape
     assert inW >= 1 and inH >= 1
     assert kernelW >= 1 and kernelH >= 1
@@ -131,28 +134,27 @@ def _upfirdn_2d_ref(x, k, upx, upy, downx, downy, padx0, padx1, pady0, pady1):
     assert isinstance(padx0, int) and isinstance(padx1, int)
     assert isinstance(pady0, int) and isinstance(pady1, int)
 
-    outW = (inW * upx + padx0 + padx1 - kernelW) // downx + 1
-    outH = (inH * upy + pady0 + pady1 - kernelH) // downy + 1
-    assert outW >= 1 and outH >= 1
+    # Upsample (insert zeros).
+    x = tf.reshape(x, [-1, inH, 1, inW, 1, minorDim])
+    x = tf.pad(x, [[0, 0], [0, 0], [0, upy - 1], [0, 0], [0, upx - 1], [0, 0]])
+    x = tf.reshape(x, [-1, inH * upy, inW * upx, minorDim])
 
-    kc = tf.constant(k, dtype=x.dtype)
-    gkc = tf.constant(k[::-1, ::-1], dtype=x.dtype)
-    gpadx0 = kernelW - padx0 - 1
-    gpady0 = kernelH - pady0 - 1
-    gpadx1 = inW * upx - outW * downx + padx0 - upx + 1
-    gpady1 = inH * upy - outH * downy + pady0 - upy + 1
+    # Pad (crop if negative).
+    x = tf.pad(x, [[0, 0], [max(pady0, 0), max(pady1, 0)],
+                   [max(padx0, 0), max(padx1, 0)], [0, 0]])
+    x = x[:, max(-pady0, 0): x.shape[1].value - max(-pady1, 0),
+          max(-padx0, 0): x.shape[2].value - max(-padx1, 0), :]
 
-    @tf.custom_gradient
-    def func(x):
-        y = _get_plugin().up_fir_dn2d(x=x, k=kc, upx=upx, upy=upy, downx=downx,
-                                      downy=downy, padx0=padx0, padx1=padx1, pady0=pady0, pady1=pady1)
-        y.set_shape([majorDim, outH, outW, minorDim])
+    # Convolve with filter.
+    x = tf.transpose(x, [0, 3, 1, 2])
+    x = tf.reshape(x, [-1, 1, inH * upy + pady0 +
+                       pady1, inW * upx + padx0 + padx1])
+    w = tf.constant(k[::-1, ::-1, np.newaxis, np.newaxis], dtype=x.dtype)
+    x = tf.nn.conv2d(x, w, strides=[1, 1, 1, 1],
+                     padding='VALID', data_format='NCHW')
+    x = tf.reshape(x, [-1, minorDim, inH * upy + pady0 + pady1 -
+                       kernelH + 1, inW * upx + padx0 + padx1 - kernelW + 1])
+    x = tf.transpose(x, [0, 2, 3, 1])
 
-        @tf.custom_gradient
-        def grad(dy):
-            dx = _get_plugin().up_fir_dn2d(x=dy, k=gkc, upx=downx, upy=downy, downx=upx,
-                                           downy=upy, padx0=gpadx0, padx1=gpadx1, pady0=gpady0, pady1=gpady1)
-            dx.set_shape([majorDim, inH, inW, minorDim])
-            return dx, func
-        return y, grad
-    return func(x)
+    # Downsample (throw away pixels).
+    return x[:, ::downy, ::downx, :]
