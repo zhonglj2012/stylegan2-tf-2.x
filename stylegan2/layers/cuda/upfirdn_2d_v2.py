@@ -9,7 +9,7 @@
 import os
 import numpy as np
 import tensorflow as tf
-from .. import custom_ops
+from stylegan2.layers.cuda import custom_ops
 
 
 def _get_plugin():
