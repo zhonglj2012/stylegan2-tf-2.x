@@ -278,6 +278,7 @@ def downsample_2d(x, k=None, factor=2, gain=1, data_format='NCHW', impl='cuda'):
 
 def upsample_conv_2d(x, w, k=None, factor=2, gain=1, data_format='NCHW', impl='cuda'):
 
+
     assert isinstance(factor, int) and factor >= 1
 
     # Check weight shape.
@@ -336,7 +337,7 @@ def conv_downsample_2d(x, x_res, w, convH, convW, pad0, pad1, k, factor=2):
 
 def _shape(tf_expr, dim_idx):
     if tf_expr.shape.rank is not None:
-        dim = tf_expr.shape[dim_idx].value
+        dim = tf_expr.shape[dim_idx]
         if dim is not None:
             return dim
     return tf.shape(tf_expr)[dim_idx]
@@ -355,7 +356,7 @@ def _setup_kernel(k):
 def _simple_upfirdn_2d(x, k, up=1, down=1, pad0=0, pad1=0, data_format='NCHW', impl='cuda'):
     assert data_format in ['NCHW', 'NHWC']
     assert x.shape.rank == 4
-    y = tf.convert_to_tensor(x)
+    y = x
     if data_format == 'NCHW':
         y = tf.reshape(y, [-1, _shape(y, 2), _shape(y, 3), 1])
     y = upfirdn_2d(y, k, upx=up, upy=up, downx=down, downy=down,
